@@ -1,0 +1,88 @@
+# ------------------------------------------------------------------
+# Dobbelt Pi-hole-kontrolpanel — nginx reverse-proxy eksempel
+#
+# Hvad skal tilpasses:
+#   dns.eksempel.dk         -> domænenavnet man tilgår dette værktøj.
+#   pihole1.eksempel.dk     -> værtsnavn eller IP-adresse til din første Pi-hole-installation
+#   pihole2.eksempel.dk     -> værtsnavn eller IP-adresse til din anden Pi-hole-installation
+#   /etc/nginx/ssl/...      -> dit SSL certifikat og privat nøgle.
+#   /srv/web/dobbeltpihole  -> hvor du placerer index.html og chart.umd.min.js
+#
+# Hvorfor en proxy til dette: Kontrolpanelets JavaScript henter data fra
+# /api1/... og /api2/... som relative stier på den oprindelige host.
+# Så vil nginx videresende disse forespørgsler til de 2 rigtige Pi-hole
+# installationer så man undgår CORS helt.
+# Pi-holes CORS-håndtering er ikke konsekvent på tværs af alle endpoints.
+# Derfor er dette den enkleste måde at få en stabil løsning på.
+# ------------------------------------------------------------------
+
+server {
+    listen 443 ssl http2;
+    server_name dns.eksempel.dk;
+
+    ssl_certificate     /etc/nginx/ssl/dns.eksempel.dk/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/dns.eksempel.dk/privkey.pem;
+
+    root /srv/web/dobbeltpihole;
+    index index.html;
+    autoindex off;
+
+    # --- Grundlæggende sikkerhedsheadere ------------------------------
+    # Bemærkning om script-src 'unsafe-inline': Kontrolpanelet leveres som
+    # én selvstændig HTML-fil med JavaScript direkte i filen. Browseren skal
+    # derfor have tilladelse til at afvikle inline JavaScript. Det betyder,
+    # at denne CSP ikke blokerer et indsat inline <script>, hvis et sådant
+    # script skulle slippe igennem uden korrekt neutralisering et sted i
+    # programmet. Politikken begrænser primært, hvilke kilder der må
+    # kommunikeres med, indlejres eller indlæses elementer fra.
+    #
+    # Hvis kontrolpanelet skal deles med andre og ikke kun bruges af dig selv,
+    # kan <script>-blokken flyttes til en separat app.js-fil. Derefter kan
+    # 'unsafe-inline' fjernes fra script-src, hvilket lukker dette hul.
+    # Ved personlig brug er risikoen begrænset, da det kun er dig selv,
+    # der vil kunne blive berørt.
+    # Hvis kontrolpanelet afvikles på en Synology NAS, kan der desuden
+    # oprettes og tilknyttes en "Profil til adgangskontrol" i DSM.
+    # Profilen kan begrænse adgangen til bestemte IP-adresser eller lokale
+    # netværk, så kontrolpanelet ikke er tilgængeligt for uvedkommende.
+
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self';" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "same-origin" always;
+
+    # --- Reverse proxy til de 2 Pi-hole installationer ---------------------------
+    location /api1/ {
+        proxy_pass https://pihole1.eksempel.dk/api/;
+        proxy_ssl_verify off;              # Fjern hvis pihole1 har et offentligt (ikke selv-signeret) certifikat
+        proxy_set_header Host pihole1.eksempel.dk;
+        proxy_ssl_server_name on;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 30s;
+    }
+
+    location /api2/ {
+        proxy_pass https://pihole2.eksempel.dk/api/;
+        proxy_ssl_verify off;              # Fjern hvis pihole2 har et offentligt (ikke selv-signeret) certifikat
+        proxy_set_header Host pihole2.eksempel.dk;
+        proxy_ssl_server_name on;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 30s;
+    }
+
+    # --- Selve kontrolpanelet ------------------------------------------
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+}
+
+# Valgfri: Omdiriger http til https
+server {
+    listen 80;
+    server_name dns.eksempel.dk;
+    return 301 https://$host$request_uri;
+}
