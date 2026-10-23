@@ -2,6 +2,8 @@
 
 [English](README.md) | **Dansk**
 
+**v1.5.011**
+
 Et let kontrolpanel til samlet administration af to, tre eller fire Pi-hole v6-installationer.
 Løsningen består af én selvstændig `index.html` uden backend, database eller
 buildproces. Browseren kommunikerer direkte med de aktive Pi-hole-installationers
@@ -10,12 +12,16 @@ REST API gennem en nginx reverse proxy.
 Kontrolpanelet indeholder:
 
 - Dashboard med samlede tal og grafer
+- Overblik med status og sammenligning af opsætning på tværs af installationerne
 - Fælles forespørgselslog med filtrering og sortering
 - Administration af tilladte og blokerede domæner
-- Lokale DNS-poster med visning af forskelle mellem installationerne
-- Kendte klienter og forslag til ukendte enheder
+- Lokale DNS-poster og CNAME med visning af forskelle mellem installationerne
+- Kendte klienter, forslag til ukendte enheder og oprydning i Pi-holes netværkstabel
+- Administration af grupper og gruppetilknytninger for domæner, klienter og lister
 - Administration af adlists
-- Gravity-opdatering på hver installation med tidspunktet for seneste opdatering
+- Gravity-opdateringer med sekventiel kø, log og tidspunktet for seneste opdatering
+- Download af Teleporter-backup fra de valgte installationer
+- Valgfri startfane under Indstillinger
 - Handlinger, der kan udføres på én eller alle aktive installationer
 - Dansk, norsk bokmål, nynorsk og engelsk brugerflade
 
@@ -62,7 +68,8 @@ docker compose up -d
 
 Docker henter automatisk det færdigbyggede image med dashboardet, nginx og Chart.js. Åbn derefter `http://DIN-SERVERS-IP:8080`.
 
-Opdater til det seneste image med:
+Når en nyere version findes, viser Docker-udgaven disse opdateringskommandoer
+under Indstillinger. Kør dem i mappen med din `compose.yml`:
 
 ```bash
 docker compose pull
@@ -75,6 +82,8 @@ Se [Dockerprojektet](https://github.com/tursoe/Dobbelt-Pi-hole-Docker) for flere
 
 1. Kopiér `index.html` til den mappe, hvor nginx skal levere kontrolpanelet fra,
    eksempelvis `/srv/web/pihole-dashboard/index.html`.
+   Kopiér også `icon.svg`, `favicon-*.png`, `android-chrome-*.png`,
+   `apple-touch-icon.png` og `site.webmanifest` fra udgivelsen til samme mappe.
    Kopiér `language.js` til samme mappe for at aktivere tysk og andre sprogbidrag.
 2. Download Chart.js til samme mappe:
 
@@ -130,6 +139,67 @@ Disse navne gemmes i browserens `localStorage` og erstatter standardnavnene i
 netop den browser. Antallet og API-stierne kan ikke ændres under Indstillinger.
 Ændringer af standardnavne i filen overskriver ikke lokalt gemte navne.
 
+## Funktioner i v1.5.011
+
+### Overblik
+
+Overblik viser instansernes status og sammenligner domæner, lokale DNS-poster,
+CNAME, klienter, grupper og lister. Visningen fremhæver manglende poster og
+forskellige værdier eller gruppetilknytninger. En ufuldstændig sammenligning
+markeres særskilt. Du retter selv forskellene på den relevante fane.
+
+Et tryk på Overblik eller Grupper henter data igen, også når fanen allerede
+er valgt. Visningen bygger på senest hentede data og overvåger ikke ændringer
+i baggrunden.
+
+### Grupper
+
+Opret grupper med én fælles formular til én eller alle aktive instanser.
+Manglende grupper kan tilføjes på den enkelte instans, og eksisterende grupper
+kan redigeres eller slettes. Standardgruppen kan ikke omdøbes eller slettes.
+Domæner, klienter og lister har egne handlinger til gruppetilknytninger.
+Grupper matches efter navn på tværs af instanser; deres numeriske ID kan være
+forskelligt. At kopiere en gruppe kopierer selve gruppen, ikke dens medlemmer.
+
+Gruppetekster og knapper til gruppetilknytninger skjules automatisk på Domæner,
+Klienter og Lister, når alle aktive instanser kun har standardgruppen (ID 0),
+og alle poster på den aktuelle fane er tilknyttet den. Ekstra grupper, poster
+uden standardtilknytning eller ufuldstændige data bevarer gruppevisningen.
+Kontrollen bruger hele den hentede liste, også poster på andre sider.
+Fanen Grupper er altid synlig. Visningen vurderes igen, når fanens data hentes;
+gruppetilknytninger ændres ikke af, at felterne skjules.
+
+### Lokal DNS og CNAME
+
+Lokal DNS indeholder også oprettelse, redigering og sletning af CNAME-poster
+med valgfri TTL og kontrol for ugyldige navne og CNAME-løkker. Ændringer af
+CNAME genstarter Pi-holes DNS-tjeneste. Hjælpeteksten forklarer kravene til
+måldomænet. Et direkte link med `#cnames` åbner CNAME-sektionen.
+
+### Gravity og backup
+
+Gravity kan opdateres på én eller flere valgte instanser. Køen tager én instans
+ad gangen og viser fremdrift, fejl og advarsler. Følg DNS-kontrollen og eventuelle
+bekræftelser i køen. Hold siden åben, indtil køen er færdig. Lukkes siden, kan
+den igangværende opdatering fortsætte, men de næste starter ikke.
+
+Overblik kan hente Teleporter-backups fra de valgte instanser. Hver backup
+gemmes som en separat fil; browseren kan bede om tilladelse til flere downloads.
+Gendannelse foretages i Pi-holes eget webinterface.
+
+### Oprydning i sete klienter
+
+Slet ved sete, ukendte enheder fjerner enhedsregistreringen fra netværkstabellen
+på de valgte instanser. Bekræftelsen viser alle berørte IP-adresser, fordi
+Pi-hole sletter hele enhedsregistreringen med dens tilknyttede adresser.
+Klientopsætning og forespørgselshistorik bevares. Enheden kan dukke op igen,
+hvis Pi-hole registrerer den på netværket igen.
+
+### Startfane
+
+Vælg startfane under Indstillinger. Valget gemmes i den aktuelle browser.
+Dashboard er standard, og et direkte link til en fane har forrang for startfanen.
+
 ## Sprog
 
 Brugerfladen findes på **English**, **Dansk**, **norsk bokmål** og **nynorsk**.
@@ -158,12 +228,18 @@ understøttet browsersprog og derefter engelsk.
 Hvert sprog i `window.PIHOLE_LANGUAGES` angiver `label` (sprogets eget navn),
 `locale`, `author` og `messages`. Kopiér hele det engelske katalog fra `I18N.en`
 i `index.html`, oversæt værdierne og bevar alle nøgler og navngivne parametre.
-Komplette, gyldige bidrag tilføjes automatisk. Ufuldstændige eller ugyldige
-bidrag springes over. Filen kan ikke erstatte de indbyggede sprog.
-Opdatér `index.html` og `language.js` sammen, når tekstnøglerne ændres.
+Gyldige bidrag tilføjes automatisk. Ældre sprogpakker til v1.4.010
+accepteres fortsat; manglende nye tekster vises på engelsk. De oprindelige
+obligatoriske nøgler skal stadig findes, og medsendte tekster skal have korrekte
+navngivne parametre. Ugyldige bidrag springes over. Filen kan ikke erstatte de
+indbyggede sprog. Nye bidrag bør indeholde alle aktuelle nøgler. Skabelonen markerer tekster,
+der kun bevares af hensyn til kompatibilitet og kan stå uændret på engelsk.
 
 Brug [language.template.js](language.template.js) som skabelon til et nyt sprog.
-Skabelonen indeholder alle tekstnøgler og en vejledning til oversættere.
+Skabelonen til v1.5.011 indeholder alle 368 tekstnøgler og en vejledning til
+oversættere. Den kan også hentes under Indstillinger. Bevar nøglerne og oversæt
+kun tekstværdierne. `language.template.js` indlæses ikke automatisk; det færdige
+sprog skal tilføjes i `language.js`.
 Katalogerne bruger `.one` til ental efter sprogets regler og `.other` til alle
 øvrige antal, også når sproget har kategorierne zero, two, few eller many.
 
@@ -174,7 +250,9 @@ domæner, navne og kommentarer fra brugeren oversættes aldrig.
 **Kreditering:** Daniel Dietz har bidraget med den nøglebaserede sprogmotor og
 den tyske oversættelse. Denne version bygger på hans arbejde frem til commit
 `4a32733`. Hans navn vises også ved sprogvælgeren, når tysk er valgt. Andre
-oversættere kan krediteres gennem sprogets `author`-felt.
+oversættere kan krediteres gennem sprogets `author`-felt. Daniels eksisterende
+tekster i den vedlagte `language.js` er bevaret; de 115 nye tyske tekster til
+v1.5.011 er suppleret med Google Translate og er ikke gennemgået af ham.
 
 Opsætningsvejledning og nginx-eksempler findes på dansk og engelsk:
 
@@ -203,13 +281,14 @@ Opsætningsvejledning og nginx-eksempler findes på dansk og engelsk:
 Kontrolpanelet bør ikke eksponeres direkte på internettet uden passende
 adgangskontrol foran det.
 
-## Roadmap
+## Versionshistorik
 
 - **v1.1.005:** Komplet dansk og engelsk brugerflade og dokumentation
 - **v1.2.006:** Understøttelse af to, tre eller fire Pi-hole-installationer
 - **v1.3.007:** Sprogmotoren genskrevet med keys, ekstra sprog findes i language.js
 - **v1.4.008:** Docker-image og forenklet installation
 - **v1.4.010:** Tilføjet norsk bokmål og nynorsk samt forberedt versionskontrol til Docker udgaven. Tidsvalg i forespørgselsloggen er begrænset til 1, 6 og 24 timer.
+- **v1.5.011:** Overblik, grupper og gruppetilknytninger, CNAME, Teleporter-backup, sekventiel Gravity-kø, oprydning i sete klienter og valgfri startfane. Udvidet sprogskabelon med engelsk fallback for ældre sprogpakker.
 
 Kontrolpanelet understøtter to til fire aktive installationer. Ekstra
 installationer kræver både det tilsvarende antal i `index.html` og en proxy i nginx.
@@ -234,5 +313,6 @@ Pi-hole v6 i 2026.
 Projektet er udgivet under MIT-licensen og må bruges, kopieres, ændres og
 videredistribueres i overensstemmelse med licensens vilkår. Se filen `LICENSE`.
 
-Chart.js medfølger ikke og skal hentes separat som beskrevet under opsætningen.
+Ved manuel installation skal Chart.js hentes separat som beskrevet under
+opsætningen. Docker-imaget indeholder Chart.js.
 Chart.js er et selvstændigt tredjepartsprojekt med sin egen licens.

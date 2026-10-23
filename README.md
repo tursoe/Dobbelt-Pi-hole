@@ -2,6 +2,8 @@
 
 **English** | [Dansk](README.DA.md)
 
+**v1.5.011**
+
 A lightweight dashboard for managing two, three or four Pi-hole v6 instances from one
 interface. The solution consists of a single self-contained `index.html` with
 no backend, database or build process. The browser communicates directly with
@@ -9,13 +11,17 @@ the active Pi-hole instances' REST APIs through an nginx reverse proxy.
 
 The dashboard includes:
 
-- Combined statistics and charts
+- Dashboard with combined statistics and charts
+- Overview with instance status and configuration comparisons
 - A combined query log with filtering and sorting
 - Management of allowed and blocked domains
-- Local DNS records with differences between the instances clearly shown
-- Known clients and suggestions for unknown devices
+- Local DNS and CNAME records with differences between instances clearly shown
+- Known clients, suggestions for unknown devices and Pi-hole network table cleanup
+- Group management and group memberships for domains, clients and adlists
 - Adlist management
-- Gravity updates on each instance, including the time of the last update
+- Gravity updates with a sequential queue, logs and the time of the last update
+- Teleporter backup downloads from selected instances
+- Configurable start tab under Settings
 - Actions that can be applied to one or all active instances
 - Danish, English, Norwegian Bokmål and Nynorsk user interfaces
 
@@ -62,7 +68,8 @@ docker compose up -d
 
 Docker automatically downloads the prebuilt image containing the dashboard, nginx and Chart.js. Then open `http://YOUR-SERVER-IP:8080`.
 
-Update to the latest image with:
+When a newer version is available, the Docker edition shows these update
+commands under Settings. Run them in the directory containing your `compose.yml`:
 
 ```bash
 docker compose pull
@@ -75,6 +82,8 @@ See the [Docker project](https://github.com/tursoe/Dobbelt-Pi-hole-Docker) for a
 
 1. Copy `index.html` to the directory served by nginx, for example
    `/srv/web/pihole-dashboard/index.html`.
+   Also copy `icon.svg`, `favicon-*.png`, `android-chrome-*.png`,
+   `apple-touch-icon.png` and `site.webmanifest` from the release to the same directory.
    Copy `language.js` to the same directory to enable German and other contributed languages.
 2. Download Chart.js to the same directory:
 
@@ -132,6 +141,68 @@ names in that browser. The server count and API paths cannot be changed under
 Settings. Changing the defaults in the file does not overwrite locally saved
 names.
 
+## Features in v1.5.011
+
+### Overview
+
+Overview shows instance status and compares domains, local DNS records,
+CNAMEs, clients, groups and adlists. It highlights missing entries and
+differences in values or group memberships. Incomplete comparisons are
+identified separately. You resolve differences yourself on the relevant tab.
+
+Clicking Overview or Groups fetches data again, even when the tab is already
+selected. The view reflects the most recently fetched data and does not
+monitor changes in the background.
+
+### Groups
+
+Create groups on one or all active instances using one shared form.
+Missing groups can be added to individual instances, and existing groups
+can be edited or deleted. The default group cannot be renamed or deleted.
+Domains, clients and adlists have their own group membership actions.
+Groups are matched by name across instances; their numeric IDs may differ.
+Copying a group copies its definition, not its members.
+
+Group membership text and edit buttons are hidden automatically on Domains,
+Clients and Lists when all active instances have only the default group (ID 0)
+and every entry on the current tab belongs to it. Extra groups, entries without
+the default membership or incomplete data keep the group controls visible.
+The check covers the complete fetched list, including entries on other pages.
+The Groups tab is always visible. Visibility is recalculated when the tab's
+data is fetched; hiding the controls does not change group memberships.
+
+### Local DNS and CNAME
+
+Local DNS also supports creating, editing and deleting CNAME records with an
+optional TTL and validation for invalid names and CNAME loops. CNAME changes
+restart the Pi-hole DNS service. The interface explains the requirements for
+the target domain. A direct link ending in `#cnames` opens the CNAME section.
+
+### Gravity and backups
+
+Run Gravity on one or more selected instances. The queue updates one instance
+at a time and displays progress, errors and warnings. Follow the DNS checks
+and any confirmations shown by the queue. Keep the page open until the queue
+finishes. Closing it may leave the current update running, but subsequent
+updates will not start.
+
+Overview can download Teleporter backups from selected instances. Each backup
+is saved as a separate file; your browser may request permission for multiple
+downloads. Restore backups through Pi-hole's own web interface.
+
+### Cleaning up seen clients
+
+Delete beside a seen, unknown device removes its network table entry from the
+selected instances. The confirmation lists every affected IP address because
+Pi-hole deletes the entire device entry and its associated addresses.
+Client configuration and query history are preserved. The device may reappear
+if Pi-hole detects it on the network again.
+
+### Start tab
+
+Choose a start tab under Settings. The choice is saved in the current browser.
+Dashboard is the default, and a direct link to a tab takes precedence.
+
 ## Languages
 
 The user interface is available in **English**, **Dansk**, **Norwegian Bokmål** and **Nynorsk**.
@@ -161,12 +232,18 @@ browser language, then English.
 Each language in `window.PIHOLE_LANGUAGES` supplies `label` (the language's native
 name), `locale`, `author` and `messages`. Copy the complete English catalog from
 `I18N.en` in `index.html`, translate the values and retain every key and named
-parameter. Complete, valid contributions are added automatically. Incomplete
-or invalid contributions are skipped. This file cannot replace the built-in languages. Update `index.html` and `language.js` together
-when message keys change.
+parameter. Valid contributions are added automatically. Older v1.4.010 packs
+remain supported; missing new messages fall back to English. The original
+required keys must still be present, and supplied messages must preserve the
+correct named parameters. Invalid contributions are skipped. This file cannot
+replace the built-in languages. New contributions should include every current key. The template identifies
+compatibility-only messages that can retain their English text.
 
 Use [language.template.js](language.template.js) as the template for a new language.
-It contains every message key and instructions for translators. Catalogs use
+The v1.5.011 template contains all 368 message keys and instructions for
+translators. It can also be downloaded under Settings. Keep the keys and
+translate only the text values. `language.template.js` is not loaded automatically;
+add the completed language to `language.js`. Catalogs use
 `.one` for the language's singular category and `.other` for all remaining
 numbers, including zero, two, few and many plural categories.
 
@@ -177,7 +254,9 @@ as domains, names and comments are never translated.
 **Credits:** Daniel Dietz contributed the key-based localization engine and
 German translation. This version builds on his work through commit `4a32733`.
 His name is also shown beside the language selector when German is selected.
-Other translators can be credited through the language's `author` field.
+Other translators can be credited through the language's `author` field. Daniel's
+existing text in the supplied `language.js` is preserved; the 115 new German
+messages for v1.5.011 were added with Google Translate and have not been reviewed by him.
 
 Setup instructions and nginx examples are available in Danish and English:
 
@@ -205,14 +284,14 @@ Setup instructions and nginx examples are available in Danish and English:
 The dashboard should not be exposed directly to the internet without suitable
 access control in front of it.
 
-## Roadmap
+## Version history
 
 - **v1.1.005:** Complete Danish and English interfaces and documentation
 - **v1.2.006:** Support for two, three or four Pi-hole instances
 - **v1.3.007:** Language engine rewritten to use message keys, with additional languages in language.js
 - **v1.4.008:** Docker image and simplified installation
 - **v1.4.010:** Added Norwegian Bokmål and Nynorsk and prepared update checking for Docker installations. Query log time ranges are now limited to 1, 6 and 24 hours.
-
+- **v1.5.011:** Overview, groups and group memberships, CNAME records, Teleporter backups, a sequential Gravity queue, seen client cleanup and a configurable start tab. Expanded language template with English fallback for older language packs.
 
 The dashboard supports two to four active instances. Additional instances
 require both the matching server count in `index.html` and a proxy route in nginx.
@@ -237,6 +316,6 @@ Pi-hole v6 in 2026.
 The project is released under the MIT License and may be used, copied, modified
 and redistributed in accordance with its terms. See `LICENSE`.
 
-Chart.js is not included and must be downloaded separately as described in the
-setup instructions. Chart.js is an independent third-party project with its
+For manual installations, download Chart.js separately as described in the
+setup instructions. The Docker image includes Chart.js. Chart.js is an independent third-party project with its
 own license.
